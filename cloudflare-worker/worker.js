@@ -55,7 +55,9 @@ function cors(response) {
 }
 
 function upgradeUrl(url) {
-  return url.split('?')[0].replace(/\/\d+x\//, '/originals/');
+  // Use 736x — sufficient for Figma moodboarding and small enough to
+  // transfer reliably through Figma's plugin message system (~100–300KB).
+  return url.split('?')[0].replace(/\/\d+x\//, '/736x/');
 }
 
 function boardPathFrom(url) {
