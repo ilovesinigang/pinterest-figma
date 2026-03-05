@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pinterest → Figma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #F9FAFB;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .card-header { margin-bottom: 32px; }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #111827;
+      letter-spacing: -0.3px;
+    }
+
+    .card-subtitle {
+      font-size: 13px;
+      color: #6B7280;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      padding: 10px 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: #111827;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s;
+      background: #fff;
+    }
+
+    input[type="url"]::placeholder { color: #9CA3AF; }
+    input[type="url"]:focus {
+      border-color: #6366F1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 11px 20px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      background: #6366F1;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn:hover:not(:disabled) { background: #4F46E5; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ── Status area ──────────────────────────────────────────── */
+
+    .status-area { margin-top: 24px; min-height: 48px; }
+
+    /* Spinner row */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #374151;
+    }
+    .status-row.hidden { display: none; }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #E5E7EB;
+      border-top-color: #6366F1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress bar */
+    .progress-bar-wrap {
+      margin-top: 12px;
+      height: 4px;
+      background: #F3F4F6;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: #6366F1;
+      border-radius: 99px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    /* Confirm panel (shown after scan, before download) */
+    .status-confirm {
+      padding: 16px;
+      background: #F5F3FF;
+      border: 1px solid #DDD6FE;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.6;
+    }
+    .status-confirm.hidden { display: none; }
+
+    .confirm-count {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+
+    .confirm-note {
+      font-size: 12px;
+      color: #6B7280;
+      margin-top: 4px;
+    }
+
+    .confirm-folder {
+      font-size: 12px;
+      color: #6366F1;
+      margin-top: 4px;
+      font-family: monospace;
+    }
+
+    .btn-confirm {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      padding: 10px 20px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      background: #6366F1;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-confirm:hover { background: #4F46E5; }
+
+    /* Done banner */
+    .status-done {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px 16px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #166534;
+      line-height: 1.5;
+    }
+    .status-done.hidden { display: none; }
+    .check-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+    /* Error banner */
+    .status-error {
+      padding: 12px 16px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #991B1B;
+      line-height: 1.5;
+    }
+    .status-error.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Pinterest → Figma</div>
+      <div class="card-subtitle">Scan a public Pinterest board and download all images to your computer.</div>
+    </div>
+
+    <label for="board-url">Pinterest board URL</label>
+    <input
+      type="url"
+      id="board-url"
+      placeholder="https://pinterest.com/username/board-name/"
+      autocomplete="off"
+      spellcheck="false"
+    />
+
+    <button class="btn" id="scan-btn" onclick="startScan()">
+      Scan Board
+    </button>
+
+    <div class="status-area">
+      <!-- Spinner row -->
+      <div class="status-row hidden" id="status-row">
+        <div class="spinner"></div>
+        <span id="status-text">Loading…</span>
+      </div>
+
+      <!-- Progress bar (download phase) -->
+      <div class="progress-bar-wrap hidden" id="progress-wrap">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+
+      <!-- Confirm panel (after scan, before download) -->
+      <div class="status-confirm hidden" id="status-confirm">
+        <div class="confirm-count" id="confirm-count"></div>
+        <div class="confirm-note">Note: videos and GIFs are not included.</div>
+        <div class="confirm-folder" id="confirm-folder"></div>
+        <button class="btn-confirm" id="download-btn" onclick="startDownload()">
+          Download to my computer
+        </button>
+      </div>
+
+      <!-- Done banner -->
+      <div class="status-done hidden" id="status-done">
+        <span class="check-icon">✓</span>
+        <span id="done-text"></span>
+      </div>
+
+      <!-- Error banner -->
+      <div class="status-error hidden" id="status-error"></div>
+    </div>
+  </div>
+
+  <script>
+    let activeSource = null;
+    let currentUrl = '';
+
+    // ── Phase 1: Scan ─────────────────────────────────────────────────────
+
+    function startScan() {
+      const url = document.getElementById('board-url').value.trim();
+
+      if (!url) { showError('Please paste a Pinterest board URL first.'); return; }
+      if (!url.includes('pinterest.com')) { showError("That doesn't look like a Pinterest URL."); return; }
+
+      if (activeSource) { activeSource.close(); activeSource = null; }
+
+      currentUrl = url;
+      resetUI();
+      setScanLoading(true);
+      showSpinner('Scanning board…');
+
+      activeSource = new EventSource('/scan-stream?url=' + encodeURIComponent(url));
+      activeSource.onmessage = e => handleScanEvent(JSON.parse(e.data));
+      activeSource.onerror = () => {
+        activeSource.close();
+        setScanLoading(false);
+        showError('Connection lost. Is the server still running?');
+      };
+    }
+
+    function handleScanEvent(data) {
+      if (data.status === 'scraping') {
+        showSpinner(data.message || 'Scanning board…');
+
+      } else if (data.status === 'ready') {
+        activeSource.close();
+        setScanLoading(false);
+        hideSpinner();
+
+        const boardNote = data.board_count ? ` (board shows ${data.board_count} pins)` : '';
+        document.getElementById('confirm-count').textContent =
+          `${data.count} images ready to download${boardNote}`;
+        document.getElementById('confirm-folder').textContent =
+          'Saves to: ' + data.folder;
+        document.getElementById('status-confirm').classList.remove('hidden');
+
+      } else if (data.status === 'error') {
+        activeSource.close();
+        setScanLoading(false);
+        hideSpinner();
+        showError(data.message || 'Something went wrong.');
+      }
+    }
+
+    // ── Phase 2: Download ─────────────────────────────────────────────────
+
+    function startDownload() {
+      document.getElementById('status-confirm').classList.add('hidden');
+      document.getElementById('download-btn').disabled = true;
+      showSpinner('Starting download…');
+      showProgressBar();
+
+      activeSource = new EventSource('/download-stream?url=' + encodeURIComponent(currentUrl));
+      activeSource.onmessage = e => handleDownloadEvent(JSON.parse(e.data));
+      activeSource.onerror = () => {
+        activeSource.close();
+        hideSpinner();
+        showError('Connection lost during download.');
+      };
+    }
+
+    function handleDownloadEvent(data) {
+      if (data.status === 'downloading') {
+        const pct = Math.round((data.current / data.total) * 100);
+        showSpinner(`Downloading… ${data.current} of ${data.total} images`);
+        setProgress(pct);
+
+      } else if (data.status === 'done') {
+        activeSource.close();
+        hideSpinner();
+        hideProgressBar();
+        setScanLoading(false);
+
+        const folder = data.folder.replace(/^.*\/Downloads\//, '~/Downloads/');
+        showDone(
+          `${data.downloaded + data.skipped} images saved to ${folder}` +
+          (data.failed ? ` · ${data.failed} failed` : '')
+        );
+
+      } else if (data.status === 'error') {
+        activeSource.close();
+        hideSpinner();
+        hideProgressBar();
+        showError(data.message || 'Something went wrong.');
+      }
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────────────
+
+    function resetUI() {
+      ['status-row','progress-wrap','status-confirm','status-done','status-error']
+        .forEach(id => document.getElementById(id).classList.add('hidden'));
+      document.getElementById('status-error').textContent = '';
+      setProgress(0);
+    }
+
+    function setScanLoading(on) {
+      document.getElementById('scan-btn').disabled = on;
+    }
+
+    function showSpinner(text) {
+      document.getElementById('status-text').textContent = text;
+      document.getElementById('status-row').classList.remove('hidden');
+    }
+
+    function hideSpinner() {
+      document.getElementById('status-row').classList.add('hidden');
+    }
+
+    function showProgressBar() {
+      document.getElementById('progress-wrap').classList.remove('hidden');
+    }
+
+    function hideProgressBar() {
+      document.getElementById('progress-wrap').classList.add('hidden');
+    }
+
+    function setProgress(pct) {
+      document.getElementById('progress-fill').style.width = pct + '%';
+    }
+
+    function showDone(text) {
+      document.getElementById('done-text').textContent = text;
+      document.getElementById('status-done').classList.remove('hidden');
+    }
+
+    function showError(text) {
+      const el = document.getElementById('status-error');
+      el.textContent = text;
+      el.classList.remove('hidden');
+    }
+
+    document.getElementById('board-url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') startScan();
+    });
+  </script>
+</body>
+</html>
