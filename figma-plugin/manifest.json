@@ -2,6 +2,7 @@
   "name": "Pinterest → Figma",
   "id": "pinterest-to-figma-importer",
   "api": "1.0.0",
+  "editorType": ["figma"],
   "main": "code.js",
   "ui": "ui.html",
   "networkAccess": {

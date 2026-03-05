@@ -223,9 +223,33 @@
       setProgress(100);
       setStatus(`Placing ${loaded.length} images on canvas…`);
 
-      // ── Step 3: send to plugin code ────────────────────────────────────────
+      // ── Step 3: stream images to plugin one at a time ──────────────────────
       const boardName = boardUrl.replace(/\/$/, '').split('/').pop();
-      parent.postMessage({ pluginMessage: { type: 'place-images', images: loaded, boardName } }, '*');
+
+      await sendMsg({ type: 'start', total: loaded.length, boardName });
+
+      for (let i = 0; i < loaded.length; i++) {
+        setStatus(`Placing… ${i + 1} of ${loaded.length}`);
+        setProgress(Math.round((i / loaded.length) * 100));
+        await sendMsg({ type: 'image', bytes: loaded[i].bytes, index: i });
+      }
+
+      await sendMsg({ type: 'finish' });
+    }
+
+    // Send a message to plugin code and wait for 'ack' reply
+    function sendMsg(msg) {
+      return new Promise(resolve => {
+        const handler = (event) => {
+          const reply = event.data?.pluginMessage;
+          if (reply?.type === 'ack' || reply?.type === 'done') {
+            window.removeEventListener('message', handler);
+            resolve(reply);
+          }
+        };
+        window.addEventListener('message', handler);
+        parent.postMessage({ pluginMessage: msg }, '*');
+      });
     }
 
     async function fetchImage(url) {
@@ -238,7 +262,7 @@
       }
     }
 
-    // Listen for done/error from plugin code
+    // Listen for final done message from plugin code
     window.onmessage = (event) => {
       const msg = event.data?.pluginMessage;
       if (!msg) return;
