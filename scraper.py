@@ -128,27 +128,6 @@ async def scrape_board(board_url):
         print(f"[scraper] Navigating to {board_url}")
         await page.goto(board_url, wait_until="domcontentloaded", timeout=30000)
 
-        # ── Raw HTML harvest (SSR pins) ───────────────────────────────────────
-        # Read the page HTML immediately after domcontentloaded — before any
-        # lazy loading or JS modifications. Pinterest SSR-writes actual image
-        # URLs into src/srcset attributes, so they're in the HTML as text even
-        # if the browser hasn't fetched them yet.
-        # We target 474x and 736x only — those sizes are pin images.
-        # Profile photos use 75x75_RS; icons/UI use different patterns.
-        html = await page.content()
-        ssr_urls = re.findall(
-            r'https://i\.pinimg\.com/(?:736x|474x)/[a-f0-9/]+\.[a-zA-Z]+',
-            html
-        )
-        ssr_count = 0
-        for url in ssr_urls:
-            clean = url.split("?")[0]
-            upgraded = upgrade_url(clean)
-            if upgraded not in api_images:
-                api_images.add(upgraded)
-                ssr_count += 1
-        print(f"[scraper] Raw HTML harvest: +{ssr_count} SSR pins found")
-
         try:
             await page.wait_for_selector('a[href*="/pin/"]', timeout=20000)
         except Exception:
