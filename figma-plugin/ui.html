@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pinterest → Figma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #fff;
+      padding: 20px;
+      color: #111827;
+    }
+
+    h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: #6B7280;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 9px 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: #111827;
+      border: 1.5px solid #E5E7EB;
+      border-radius: 7px;
+      outline: none;
+    }
+    input:focus { border-color: #6366F1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    input::placeholder { color: #9CA3AF; }
+
+    .btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      background: #6366F1;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover:not(:disabled) { background: #4F46E5; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status {
+      margin-top: 16px;
+      font-size: 12px;
+      color: #374151;
+      line-height: 1.6;
+      min-height: 20px;
+    }
+
+    .progress-wrap {
+      margin-top: 10px;
+      height: 4px;
+      background: #F3F4F6;
+      border-radius: 99px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #6366F1;
+      border-radius: 99px;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+
+    .done {
+      margin-top: 12px;
+      padding: 12px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #166534;
+      display: none;
+    }
+
+    .error {
+      margin-top: 12px;
+      padding: 12px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #991B1B;
+      display: none;
+    }
+
+    .note {
+      margin-top: 12px;
+      font-size: 11px;
+      color: #9CA3AF;
+    }
+
+    /* Worker URL config */
+    .config-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #F3F4F6;
+    }
+    .config-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Pinterest → Figma</h1>
+  <div class="subtitle">Import all images from a public Pinterest board directly onto your canvas.</div>
+
+  <label for="board-url">Pinterest board URL</label>
+  <input id="board-url" type="url" placeholder="https://pinterest.com/username/board/" spellcheck="false" autocomplete="off" />
+
+  <button class="btn" id="import-btn" onclick="startImport()">Import Images</button>
+
+  <div class="status" id="status"></div>
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+  <div class="done" id="done"></div>
+  <div class="error" id="error"></div>
+
+  <div class="note">Note: videos and GIFs are not included.</div>
+
+  <div class="config-section">
+    <div class="config-label">Worker URL</div>
+    <input id="worker-url" type="url" placeholder="https://your-worker.workers.dev" spellcheck="false" autocomplete="off" />
+  </div>
+
+  <script>
+    // Load saved worker URL
+    const savedWorker = localStorage.getItem('pinterest_worker_url');
+    if (savedWorker) document.getElementById('worker-url').value = savedWorker;
+
+    document.getElementById('worker-url').addEventListener('change', () => {
+      localStorage.setItem('pinterest_worker_url', document.getElementById('worker-url').value.trim());
+    });
+
+    async function startImport() {
+      const boardUrl   = document.getElementById('board-url').value.trim();
+      const workerUrl  = document.getElementById('worker-url').value.trim();
+
+      if (!boardUrl) { showError('Paste a Pinterest board URL first.'); return; }
+      if (!boardUrl.includes('pinterest.com')) { showError("That doesn't look like a Pinterest URL."); return; }
+      if (!workerUrl) { showError('Enter your Cloudflare Worker URL below first.'); return; }
+
+      resetUI();
+      setLoading(true);
+      setStatus('Fetching board from Pinterest…');
+
+      // ── Step 1: get image URLs from Worker ─────────────────────────────────
+      let imageUrls;
+      try {
+        const resp = await fetch(`${workerUrl}?url=${encodeURIComponent(boardUrl)}`);
+        if (!resp.ok) throw new Error(`Worker returned ${resp.status}`);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        imageUrls = data.urls || [];
+      } catch (err) {
+        setLoading(false);
+        showError(`Could not reach board: ${err.message}`);
+        return;
+      }
+
+      if (imageUrls.length === 0) {
+        setLoading(false);
+        showError('No images found. Is the board public?');
+        return;
+      }
+
+      setStatus(`Found ${imageUrls.length} images. Downloading…`);
+      showProgressBar();
+
+      // ── Step 2: fetch each image as bytes ─────────────────────────────────
+      const loaded = [];
+      for (let i = 0; i < imageUrls.length; i++) {
+        const url = imageUrls[i];
+        setStatus(`Downloading… ${i + 1} of ${imageUrls.length}`);
+        setProgress(Math.round((i / imageUrls.length) * 100));
+
+        try {
+          // Try direct CDN fetch first; fall back to Worker proxy
+          let bytes = await fetchImage(url);
+          if (!bytes) bytes = await fetchImage(`${workerUrl}/img?url=${encodeURIComponent(url)}`);
+          if (bytes) loaded.push({ bytes });
+        } catch (e) {
+          // skip failed images silently
+        }
+      }
+
+      setProgress(100);
+      setStatus(`Placing ${loaded.length} images on canvas…`);
+
+      // ── Step 3: send to plugin code ────────────────────────────────────────
+      const boardName = boardUrl.replace(/\/$/, '').split('/').pop();
+      parent.postMessage({ pluginMessage: { type: 'place-images', images: loaded, boardName } }, '*');
+    }
+
+    async function fetchImage(url) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) return null;
+        return await resp.arrayBuffer();
+      } catch {
+        return null;
+      }
+    }
+
+    // Listen for done/error from plugin code
+    window.onmessage = (event) => {
+      const msg = event.data?.pluginMessage;
+      if (!msg) return;
+
+      if (msg.type === 'done') {
+        setLoading(false);
+        hideProgressBar();
+        setStatus('');
+        showDone(`✓ ${msg.count} images placed on canvas.`);
+      }
+    };
+
+    // ── UI helpers ─────────────────────────────────────────────────────────
+
+    function resetUI() {
+      setStatus('');
+      hideProgressBar();
+      setProgress(0);
+      document.getElementById('done').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+    }
+
+    function setLoading(on) { document.getElementById('import-btn').disabled = on; }
+    function setStatus(text) { document.getElementById('status').textContent = text; }
+    function showProgressBar() { document.getElementById('progress-wrap').style.display = 'block'; }
+    function hideProgressBar() { document.getElementById('progress-wrap').style.display = 'none'; }
+    function setProgress(pct) { document.getElementById('progress-fill').style.width = pct + '%'; }
+
+    function showDone(text) {
+      const el = document.getElementById('done');
+      el.textContent = text;
+      el.style.display = 'block';
+    }
+
+    function showError(text) {
+      const el = document.getElementById('error');
+      el.textContent = text;
+      el.style.display = 'block';
+    }
+
+    document.getElementById('board-url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') startImport();
+    });
+  </script>
+</body>
+</html>

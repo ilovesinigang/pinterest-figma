@@ -1,0 +1,11 @@
+{
+  "name": "Pinterest → Figma",
+  "id": "pinterest-to-figma-importer",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Fetches board data from a Cloudflare Worker proxy and images from Pinterest CDN"
+  }
+}
