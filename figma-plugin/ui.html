@@ -211,9 +211,8 @@
         setProgress(Math.round((i / imageUrls.length) * 100));
 
         try {
-          // Try direct CDN fetch first; fall back to Worker proxy
-          let bytes = await fetchImage(url);
-          if (!bytes) bytes = await fetchImage(`${workerUrl}/img?url=${encodeURIComponent(url)}`);
+          // Always proxy through Worker — avoids CORS issues with Pinterest CDN
+          const bytes = await fetchImage(`${workerUrl}/img?url=${encodeURIComponent(url)}`);
           if (bytes) loaded.push({ bytes });
         } catch (e) {
           // skip failed images silently
@@ -221,7 +220,14 @@
       }
 
       setProgress(100);
-      setStatus(`Placing ${loaded.length} images on canvas…`);
+      if (loaded.length === 0) {
+        setLoading(false);
+        hideProgressBar();
+        showError('Could not fetch any images. Check your Worker URL is correct and redeployed.');
+        return;
+      }
+
+      setStatus(`Placing ${loaded.length} of ${imageUrls.length} images on canvas…`);
 
       // ── Step 3: stream images to plugin one at a time ──────────────────────
       const boardName = boardUrl.replace(/\/$/, '').split('/').pop();
