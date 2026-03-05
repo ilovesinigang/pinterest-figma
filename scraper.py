@@ -145,6 +145,44 @@ async def scrape_board(board_url):
         else:
             print("[scraper] Could not read pin count, will scroll to end")
 
+        # ── Initial DOM harvest (pre-scroll only) ─────────────────────────────
+        # Pinterest SSR-renders the first ~5 pins directly into the HTML.
+        # Those never fire a BoardFeedResource XHR so the API interceptor
+        # misses them. We scrape them from the DOM NOW — before any scrolling —
+        # when "More ideas" is guaranteed not to be in the DOM yet.
+        initial_batch = await page.evaluate("""
+            () => {
+                const pinLinks = document.querySelectorAll('a[href*="/pin/"]');
+                const urls = [];
+                pinLinks.forEach(link => {
+                    const img = link.querySelector('img');
+                    if (!img) return;
+                    if (img.srcset) {
+                        let best = '', bestW = 0;
+                        img.srcset.split(',').forEach(part => {
+                            const t = part.trim().split(/\\s+/);
+                            if (t.length >= 2) {
+                                const w = parseInt(t[1]) || 0;
+                                if (w > bestW) { bestW = w; best = t[0]; }
+                            } else if (t.length === 1 && !best) { best = t[0]; }
+                        });
+                        if (best) { urls.push(best); return; }
+                    }
+                    if (img.src) urls.push(img.src);
+                });
+                return urls;
+            }
+        """)
+        pre_scroll_count = 0
+        for url in initial_batch:
+            clean = url.split("?")[0]
+            if "i.pinimg.com" in clean:
+                upgraded = upgrade_url(clean)
+                if upgraded not in api_images:
+                    api_images.add(upgraded)
+                    pre_scroll_count += 1
+        print(f"[scraper] Pre-scroll DOM harvest: +{pre_scroll_count} pins — {len(api_images)} total")
+
         # ── Scroll loop ───────────────────────────────────────────────────────
         stable_count = 0
         last_count = 0
