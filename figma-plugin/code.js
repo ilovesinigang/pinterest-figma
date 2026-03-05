@@ -50,7 +50,10 @@ figma.ui.onmessage = async (msg) => {
     frame.clipsContent = true;
 
     try {
-      const image = figma.createImage(new Uint8Array(bytes));
+      const raw = atob(bytes);
+      const uint8 = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) uint8[i] = raw.charCodeAt(i);
+      const image = figma.createImage(uint8);
       frame.fills = [{ type: 'IMAGE', scaleMode: 'FILL', imageHash: image.hash }];
     } catch (e) {
       frame.fills = [{ type: 'SOLID', color: { r: 0.88, g: 0.88, b: 0.88 } }];
