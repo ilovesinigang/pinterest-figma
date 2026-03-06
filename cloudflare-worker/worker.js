@@ -69,28 +69,69 @@ function boardPathFrom(url) {
 
 async function scrapeBoard(boardUrl) {
   if (!boardUrl.startsWith('http')) boardUrl = 'https://www.pinterest.com' + boardUrl;
-  const boardPath = boardPathFrom(boardUrl);
-  const ssrImages = new Set();
-  const apiImages = new Set();
+  var boardPath = boardPathFrom(boardUrl);
+  var ssrImages = new Set();
+  var apiImages = new Set();
 
-  // ── Step 1: fetch board HTML for board_id + fallback SSR pins ─────────────
-  const pageResp = await fetch(boardUrl, {
-    headers: { ...HEADERS, 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8' },
+  // Extract username and slug from URL for API calls
+  var pathParts = boardPath.replace(/^\/|\/$/g, '').split('/');
+  var username = pathParts[0] || '';
+  var boardSlug = pathParts[1] || '';
+
+  // ── Step 1: fetch board HTML for fallback SSR pins ────────────────────────
+  var pageResp = await fetch(boardUrl, {
+    headers: { 'User-Agent': HEADERS['User-Agent'], 'Accept-Language': HEADERS['Accept-Language'], 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8' },
   });
   if (!pageResp.ok) throw new Error('Board page returned ' + pageResp.status + '. Is the board public?');
 
-  const html = await pageResp.text();
+  // Capture cookies from page response for API calls
+  var cookies = pageResp.headers.get('set-cookie') || '';
+  var cookieStr = cookies.split(',').map(function(c) { return c.split(';')[0].trim(); }).join('; ');
 
-  // SSR images as fallback only (includes "More ideas" contamination)
-  for (const m of html.matchAll(/https:\/\/i\.pinimg\.com\/(?:736x|474x)\/[a-f0-9/]+\.[a-zA-Z]+/g)) {
+  var html = await pageResp.text();
+
+  // SSR images as fallback only
+  for (var m of html.matchAll(/https:\/\/i\.pinimg\.com\/(?:736x|474x)\/[a-f0-9/]+\.[a-zA-Z]+/g)) {
     ssrImages.add(upgradeUrl(m[0]));
   }
 
-  // Extract board_id — handle both "board_id":"123" and "board_id":123
+  // Try extracting board_id from HTML first
   var boardIdMatch = html.match(/"board_id"\s*:\s*"?(\d+)"?/);
   var boardId = boardIdMatch ? boardIdMatch[1] : null;
   var pinCountMatch = html.match(/"pin_count"\s*:\s*(\d+)/);
   var pinCount = pinCountMatch ? parseInt(pinCountMatch[1]) : 0;
+
+  // If no board_id in HTML, try BoardResource API
+  if (!boardId && username && boardSlug) {
+    try {
+      var brData = JSON.stringify({
+        options: { slug: boardSlug, username: username, field_set_key: 'detailed' },
+        context: {}
+      });
+      var brUrl = 'https://www.pinterest.com/resource/BoardResource/get/?source_url=' +
+        encodeURIComponent(boardPath) + '&data=' + encodeURIComponent(brData);
+      var brResp = await fetch(brUrl, {
+        headers: {
+          'User-Agent': HEADERS['User-Agent'],
+          'Accept-Language': HEADERS['Accept-Language'],
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': boardUrl,
+          'Cookie': cookieStr,
+        },
+      });
+      if (brResp.ok) {
+        var brJson = await brResp.json();
+        var boardData = brJson && brJson.resource_response && brJson.resource_response.data;
+        if (boardData) {
+          boardId = boardData.id || boardData.board_id || null;
+          if (boardData.pin_count) pinCount = boardData.pin_count;
+        }
+      }
+    } catch (e) {
+      // BoardResource failed, continue without it
+    }
+  }
 
   if (!boardId) {
     return { urls: Array.from(ssrImages), count: pinCount, warning: 'Could not paginate — only SSR pins returned', source: 'ssr' };
@@ -130,6 +171,7 @@ async function scrapeBoard(boardUrl) {
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': boardUrl,
+        'Cookie': cookieStr,
       },
     });
     if (!apiResp.ok) break;
