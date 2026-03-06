@@ -21,7 +21,7 @@ export default {
     const url = new URL(request.url);
 
     // Image proxy endpoint — fallback if CDN blocks direct fetch from plugin
-    if (url.pathname === '/img') {
+    if (url.pathname === '/img' || url.pathname === '//img') {
       const imgUrl = url.searchParams.get('url');
       if (!imgUrl) return cors(new Response('Missing url', { status: 400 }));
       const resp = await fetch(imgUrl, { headers: HEADERS });

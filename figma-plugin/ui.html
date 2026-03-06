@@ -172,7 +172,7 @@
 
     async function startImport() {
       const boardUrl   = document.getElementById('board-url').value.trim();
-      const workerUrl  = document.getElementById('worker-url').value.trim();
+      const workerUrl  = document.getElementById('worker-url').value.trim().replace(/\/+$/, '');
 
       if (!boardUrl) { showError('Paste a Pinterest board URL first.'); return; }
       if (!boardUrl.includes('pinterest.com')) { showError("That doesn't look like a Pinterest URL."); return; }
