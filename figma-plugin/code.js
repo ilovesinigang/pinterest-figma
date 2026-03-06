@@ -49,7 +49,7 @@ figma.ui.onmessage = async (msg) => {
     frame.y = PAD + row * (SIZE + GAP);
     frame.clipsContent = true;
 
-    console.log(`[plugin] image ${index}: bytes type=${typeof bytes}, isArray=${Array.isArray(bytes)}, length=${bytes?.length}`);
+    console.log('[plugin] image ' + index + ': bytes type=' + typeof bytes + ', isArray=' + Array.isArray(bytes) + ', length=' + (bytes && bytes.length));
     try {
       const image = figma.createImage(new Uint8Array(bytes));
       console.log(`[plugin] image ${index}: created OK, hash=${image.hash}`);
