@@ -49,10 +49,13 @@ figma.ui.onmessage = async (msg) => {
     frame.y = PAD + row * (SIZE + GAP);
     frame.clipsContent = true;
 
+    console.log(`[plugin] image ${index}: bytes type=${typeof bytes}, isArray=${Array.isArray(bytes)}, length=${bytes?.length}`);
     try {
       const image = figma.createImage(new Uint8Array(bytes));
+      console.log(`[plugin] image ${index}: created OK, hash=${image.hash}`);
       frame.fills = [{ type: 'IMAGE', scaleMode: 'FILL', imageHash: image.hash }];
     } catch (e) {
+      console.error(`[plugin] image ${index} FAILED:`, e);
       frame.fills = [{ type: 'SOLID', color: { r: 0.88, g: 0.88, b: 0.88 } }];
     }
 
