@@ -1,11 +1,9 @@
 """
 scraper.py — Headless Pinterest board scraper using Playwright.
 
-Uses API response interception (BoardFeedResource) to collect only
-this board's pins. No DOM scraping — immune to "More ideas" pollution.
-
-Known limitation: Pinterest server-renders the first ~5 pins in HTML
-(no XHR fired), so those are not captured by API interception.
+Uses API response interception (BoardFeedResource) + a pre-scroll DOM
+harvest to collect board pins. The pre-scroll harvest captures SSR-rendered
+pins before "More ideas" content loads.
 
 Usage (standalone test):
     python3 scraper.py https://pinterest.com/username/board-name/
@@ -144,6 +142,29 @@ async def scrape_board(board_url):
             print(f"[scraper] Board declares {board_pin_count} pins")
         else:
             print("[scraper] Could not read pin count, will scroll to end")
+
+        # ── Pre-scroll harvest: grab SSR pins before "More ideas" loads ──────
+        ssr_urls = await page.evaluate("""
+            () => {
+                const urls = [];
+                const imgs = document.querySelectorAll('img[src*="i.pinimg.com"]');
+                for (const img of imgs) {
+                    const src = img.src || '';
+                    if (src.includes('/736x/') || src.includes('/474x/') || src.includes('/236x/') || src.includes('/originals/')) {
+                        urls.push(src);
+                    }
+                }
+                return urls;
+            }
+        """)
+        ssr_count = 0
+        for u in ssr_urls:
+            upgraded = upgrade_url(u)
+            if upgraded not in api_images:
+                api_images.add(u)
+                ssr_count += 1
+        if ssr_count:
+            print(f"[scraper] Pre-scroll harvest: +{ssr_count} SSR pins — {len(api_images)} total")
 
         # ── Scroll loop ───────────────────────────────────────────────────────
         stable_count = 0
