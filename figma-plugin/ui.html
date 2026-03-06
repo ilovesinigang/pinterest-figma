@@ -263,9 +263,16 @@
     async function fetchImage(url) {
       try {
         const resp = await fetch(url);
-        if (!resp.ok) return null;
-        return await resp.arrayBuffer();
-      } catch {
+        if (!resp.ok) { console.log('[fetch] not ok:', resp.status, url); return null; }
+        const buf = await resp.arrayBuffer();
+        if (buf.byteLength < 1000) {
+          var txt = new TextDecoder().decode(buf);
+          console.log('[fetch] tiny response (' + buf.byteLength + 'b):', txt);
+          return null;
+        }
+        return buf;
+      } catch (e) {
+        console.log('[fetch] error:', e.message, url);
         return null;
       }
     }
