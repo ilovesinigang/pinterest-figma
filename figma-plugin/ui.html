@@ -160,12 +160,14 @@
   </div>
 
   <script>
-    // Load saved worker URL
-    const savedWorker = localStorage.getItem('pinterest_worker_url');
-    if (savedWorker) document.getElementById('worker-url').value = savedWorker;
+    // Load saved worker URL (localStorage unavailable in Figma plugin iframes)
+    try {
+      const savedWorker = localStorage.getItem('pinterest_worker_url');
+      if (savedWorker) document.getElementById('worker-url').value = savedWorker;
+    } catch (_) {}
 
     document.getElementById('worker-url').addEventListener('change', () => {
-      localStorage.setItem('pinterest_worker_url', document.getElementById('worker-url').value.trim());
+      try { localStorage.setItem('pinterest_worker_url', document.getElementById('worker-url').value.trim()); } catch (_) {}
     });
 
     async function startImport() {
