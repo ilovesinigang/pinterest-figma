@@ -213,7 +213,7 @@
         try {
           // Always proxy through Worker — avoids CORS issues with Pinterest CDN
           const buffer = await fetchImage(`${workerUrl}/img?url=${encodeURIComponent(url)}`);
-          if (buffer) loaded.push({ bytes: toBase64(buffer) });
+          if (buffer) loaded.push({ bytes: Array.from(new Uint8Array(buffer)) });
         } catch (e) {
           // skip failed images silently
         }
@@ -266,15 +266,6 @@
       } catch {
         return null;
       }
-    }
-
-    function toBase64(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binary);
     }
 
     // Listen for final done message from plugin code
