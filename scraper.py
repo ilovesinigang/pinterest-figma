@@ -10,11 +10,14 @@ Usage (standalone test):
 """
 
 import asyncio
+import os
 import re
 import sys
+from pathlib import Path
 from playwright.async_api import async_playwright
 
 
+SESSION_FILE = str(Path(__file__).parent / ".pinterest_session.json")
 SCROLL_WAIT_MS = 1500
 MAX_STABLE_ATTEMPTS = 8
 MAX_SCROLL_SECONDS = 300
@@ -109,15 +112,21 @@ async def scrape_board(board_url):
             pass
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent=(
+        has_session = os.path.exists(SESSION_FILE)
+        browser = await p.chromium.launch(headless=has_session)
+
+        ctx_opts = {
+            "user_agent": (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
-            viewport={"width": 1280, "height": 900},
-        )
+            "viewport": {"width": 1280, "height": 900},
+        }
+        if has_session:
+            ctx_opts["storage_state"] = SESSION_FILE
+
+        context = await browser.new_context(**ctx_opts)
         page = await context.new_page()
 
         # Register interceptor before navigating
@@ -224,6 +233,8 @@ async def scrape_board(board_url):
         if post_count:
             print(f"[scraper] Post-scroll harvest: +{post_count} — {len(api_images)} total")
 
+        # Save session for future runs
+        await context.storage_state(path=SESSION_FILE)
         await browser.close()
 
     result = list(api_images)
@@ -239,17 +250,40 @@ def get_board_slug(board_url):
     return slug or "pinterest-board"
 
 
+async def login_to_pinterest():
+    """Open a visible browser so the user can log in. Saves session for reuse."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        context = await browser.new_context(
+            viewport={"width": 1280, "height": 900},
+        )
+        page = await context.new_page()
+        await page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded")
+
+        print("[scraper] Browser opened — log in to Pinterest, then press Enter here.")
+        await asyncio.get_event_loop().run_in_executor(None, input)
+
+        await context.storage_state(path=SESSION_FILE)
+        await browser.close()
+        print(f"[scraper] Session saved to {SESSION_FILE}")
+
+
 # ── Standalone test ───────────────────────────────────────────────────────────
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 scraper.py <pinterest-board-url>")
+        print("Usage:")
+        print("  python3 scraper.py login                    — log in to Pinterest (one time)")
+        print("  python3 scraper.py <pinterest-board-url>    — scrape a board")
         sys.exit(1)
 
-    url = sys.argv[1]
-    urls, count = asyncio.run(scrape_board(url))
-    print(f"\nBoard declared: {count} pins")
-    print(f"Collected: {len(urls)} images")
-    for u in urls[:10]:
-        print(" ", u)
-    if len(urls) > 10:
-        print(f"  ... and {len(urls) - 10} more")
+    if sys.argv[1] == "login":
+        asyncio.run(login_to_pinterest())
+    else:
+        url = sys.argv[1]
+        urls, count = asyncio.run(scrape_board(url))
+        print(f"\nBoard declared: {count} pins")
+        print(f"Collected: {len(urls)} images")
+        for u in urls[:10]:
+            print(" ", u)
+        if len(urls) > 10:
+            print(f"  ... and {len(urls) - 10} more")
