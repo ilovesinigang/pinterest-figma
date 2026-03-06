@@ -16,7 +16,7 @@ from playwright.async_api import async_playwright
 
 
 SCROLL_WAIT_MS = 1500
-MAX_STABLE_ATTEMPTS = 4
+MAX_STABLE_ATTEMPTS = 8
 MAX_SCROLL_SECONDS = 300
 
 
@@ -78,7 +78,7 @@ async def scrape_board(board_url):
     board_path = _board_slug_from_url(board_url)
 
     async def on_response(response):
-        if "BoardFeedResource" not in response.url:
+        if "BoardFeedResource" not in response.url and "BoardSectionPinsResource" not in response.url:
             return
         try:
             data = await response.json()
@@ -101,7 +101,7 @@ async def scrape_board(board_url):
                     img = images.get(size, {})
                     url = img.get("url", "") if isinstance(img, dict) else ""
                     if url:
-                        api_images.add(url)
+                        api_images.add(upgrade_url(url))
                         accepted += 1
                         break
             print(f"[scraper] API batch: +{accepted} kept, {skipped} skipped — {len(api_images)} total")
@@ -161,7 +161,7 @@ async def scrape_board(board_url):
         for u in ssr_urls:
             upgraded = upgrade_url(u)
             if upgraded not in api_images:
-                api_images.add(u)
+                api_images.add(upgraded)
                 ssr_count += 1
         if ssr_count:
             print(f"[scraper] Pre-scroll harvest: +{ssr_count} SSR pins — {len(api_images)} total")
@@ -186,6 +186,12 @@ async def scrape_board(board_url):
 
             if n == last_count:
                 stable_count += 1
+                # Try scrolling up then back down to trigger lazy loading
+                if stable_count == 4:
+                    await page.evaluate("window.scrollTo(0, 0)")
+                    await page.wait_for_timeout(1000)
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await page.wait_for_timeout(SCROLL_WAIT_MS)
                 if stable_count >= MAX_STABLE_ATTEMPTS:
                     print("[scraper] No new pins, stopping")
                     break
@@ -193,19 +199,36 @@ async def scrape_board(board_url):
                 stable_count = 0
                 last_count = n
 
+        # ── Post-scroll harvest: scroll back to top and grab any remaining ────
+        await page.evaluate("window.scrollTo(0, 0)")
+        await page.wait_for_timeout(2000)
+        post_urls = await page.evaluate("""
+            () => {
+                const urls = [];
+                const imgs = document.querySelectorAll('img[src*="i.pinimg.com"]');
+                for (const img of imgs) {
+                    const src = img.src || '';
+                    if (src.includes('/736x/') || src.includes('/474x/') || src.includes('/236x/') || src.includes('/originals/')) {
+                        urls.push(src);
+                    }
+                }
+                return urls;
+            }
+        """)
+        post_count = 0
+        for u in post_urls:
+            upgraded = upgrade_url(u)
+            if upgraded not in api_images:
+                api_images.add(upgraded)
+                post_count += 1
+        if post_count:
+            print(f"[scraper] Post-scroll harvest: +{post_count} — {len(api_images)} total")
+
         await browser.close()
 
-    # Upgrade to originals resolution
-    upgraded = []
-    seen = set()
-    for url in api_images:
-        up = upgrade_url(url)
-        if up not in seen:
-            seen.add(up)
-            upgraded.append(up)
-
-    print(f"[scraper] Done. {len(upgraded)} board pin images collected.")
-    return upgraded, board_pin_count
+    result = list(api_images)
+    print(f"[scraper] Done. {len(result)} board pin images collected.")
+    return result, board_pin_count
 
 
 def get_board_slug(board_url):
