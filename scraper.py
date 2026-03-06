@@ -253,7 +253,7 @@ def get_board_slug(board_url):
 async def login_to_pinterest():
     """Open a visible browser so the user can log in. Saves session for reuse."""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=False, channel="chrome")
         context = await browser.new_context(
             viewport={"width": 1280, "height": 900},
         )
